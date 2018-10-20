@@ -1,0 +1,243 @@
+---
+title: "hw05"
+output: github_document
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+I will be working with the gapminder data. 
+
+```{r}
+library(gapminder)
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(forcats))
+```
+## Activity01
+
+First I will look at the structure of the gapminder data set to get an idea of levels
+
+```{r gapinder_structure}
+gapminder %>% 
+  str()
+gapminder  
+```
+How many levels for continent? and what are the levels?
+
+```{r gapminder_levels}
+
+nlevels(gapminder$continent)
+levels(gapminder$continent)
+```
+
+There are 5 levels; Africa, Americas, Asia, Europe, Oceania
+
+I'm going to drop levels of Oceania and check the number of levels
+
+```{r drop_Oceania}
+gap_OC <- gapminder %>% 
+  filter(continent != c("Oceania"))
+
+gap_OC %>% 
+  droplevels() %>% 
+  str()
+
+gap_OC
+
+```
+I now only have 4 levels for continent. I also only have 1,680 rows instead of 1704. Now I will re-plot the data to get a better visualization
+
+```{r violin_plot}
+gap_OC %>% 
+  ggplot(aes(continent, lifeExp)) +
+  geom_violin()
+```
+
+
+I will re-order the data based on an important factor. To get an idea of what to reorder by I will first do summary stats
+
+
+```{r summary_stats}
+summary(gap_OC)
+```
+I will reorder based on min LifeExp to visualize a trend.
+
+
+
+```{r reorder}
+gap_OC %>% 
+  mutate(continent = fct_reorder(continent, lifeExp, fun = min("lifeExp"))) %>% 
+  ggplot(aes(continent, lifeExp)) +
+  geom_violin()
+```
+Asia and America have now switched. Now that it is ordered by an important variable such as min LifeExp, the plot is more meaningful.
+
+
+I will try the arrange function with this data set to see if it can accomplish the same effect.
+
+```{r}
+arrange(gap_OC, desc(lifeExp)) %>% 
+  ggplot(aes(continent, lifeExp)) +
+  geom_violin()
+```
+
+If I arrange by descending life expectancy the figure does not change. But I will see if the data is arranged differently. 
+
+
+```{r arrange_gap_OC}
+arr_gap_OC <- arrange(gap_OC, desc(lifeExp))
+
+arr_gap_OC
+```
+And I see that the data has been arragned based  on descending life expectancy
+
+
+## Activity02
+
+Now I will experiment with reading and writing to csv
+
+First I will create a data frame that I want to work with. To make this easy to notice changes etc... I will create a small data from from the gapminder set that just includes data for Canada and Egypt
+```{r filter_canada_egypt}
+gap_CE <- gapminder %>% filter(country %in% c("Canada", "Egypt")) %>% 
+  droplevels()
+
+```
+
+I'm going to start by just writing this to .csv
+
+```{r}
+write.csv(gap_CE)
+```
+It's nice to see the data here but I also want to create a file.
+```{r}
+write.csv(gap_CE, file = "gap_CE.csv")
+```
+Now I will rearrange the data to see if it will save.
+
+```{r arrange_desc_country}
+gap_CE %>% arrange(desc(country))
+
+
+
+```
+
+```{r}
+write.csv(gap_CE %>% arrange(desc(country)))
+```
+
+## Actvity 03
+
+Here is one of the first figures I made in this course:
+```{r}
+
+##code taken from previous hw03
+
+Africa <- gapminder %>% 
+  filter(lifeExp > 50) %>% 
+  filter(continent == "Africa")
+Africa %>% 
+  ggplot(aes(country,lifeExp)) +
+  geom_boxplot(fill="tomato") +
+  theme(axis.text.x=element_text(angle=90))
+```
+
+First I will reorder based on the variable lifeExp so that the trend is easier to visualize.
+
+
+
+```{r reorder_minLE_change_theme}
+
+
+Africa %>%
+  mutate(country = fct_reorder(country, lifeExp, fun = min("lifeExp"))) %>% 
+  ggplot(aes(country,lifeExp)) +
+  geom_boxplot(fill = "tomato") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=90))
+
+  
+```
+
+The color in this graph is meaningless. I will color by countries that have a mean life expectancy greater than 60. Since there are multiple points per country I will group first and then take mean lifeExp.
+
+```{r mean_lifeExp}
+mean_lifeExp <- Africa %>% group_by(country)%>% summarise(mle = mean(lifeExp)) %>% filter(mle>60)
+lapply(mean_lifeExp$country,as.character)
+```
+
+Now that I have the data in the right format I can color it the way I want to.
+
+```{r}
+
+##assinging variable for filtered data that is ordered the by min lifeExp
+Africa_LifeExp <- Africa %>%
+  mutate(country = fct_reorder(country, lifeExp, fun = min("lifeExp"))) %>% 
+  mutate(meanOver60 = if_else(country %in% lapply(mean_lifeExp$country,as.character), "high", "low")) 
+
+##
+Africa_Plot<- Africa_LifeExp %>% 
+  ggplot(aes(country,lifeExp, fill=meanOver60)) +
+  geom_boxplot() +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=90)) 
+
+```
+
+Now I will create it as a plotly plot
+
+```{r}
+library(plotly)
+
+Africa_Plot %>% 
+  ggplotly()
+
+```
+
+I want to experiment with what plotly can do but I think that's difficult with the graph I have. Instead I will focus on just the countries with High life Exp and change it to a scatter plot.
+
+```{r filter_high_lifeExp}
+High_lifeExp <- Africa_LifeExp %>% filter(meanOver60=='high')
+
+plot_ly(High_lifeExp,
+        x = ~country,
+        y = ~lifeExp,
+        z = ~pop,
+        type = "scatter3d",
+        mode = "marekrs")
+
+```
+By adding population as a variable I now have another trend to visualize. For example in Morocco al though the life expectancy increases the population does not increase by much but in Algeria the population and life expectancy increase proportionally.
+
+
+## Activity 04
+
+I will save my ggplot graph "Africa_Plot
+
+```{r save_figure}
+ggsave("Africa_Plot.png", Africa_Plot)
+```
+
+Now I will change the size since it appears a bit squished, then increase the resolution
+
+
+```{r}
+ggsave("Africa_Plot_size.png", Africa_Plot, width = 11, height = 11)
+
+
+
+ggsave("Africa_Plot_res.tiff", Africa_Plot, width = 11, height = 11, dpi=600)
+```
+
+![Africa Plot](C:\Users\alore\Desktop\hw05-alorentzian)
+
+Next I will look at other graphics devices
+
+```{r}
+svg("Africa_Plot_size.svg", width = 11, height = 11)
+```
+```
+
+
